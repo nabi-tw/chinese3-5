@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>單字練習アプリ（描摹等15語） - 修正版</title>
+  <style>
+    :root{--bg:#f3f4f6;--card:#ffffff;--accent:#2563eb;--muted:#6b7280}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans CJK JP",sans-serif;background:var(--bg);color:#111827}
+    .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{width:100%;max-width:880px;background:var(--card);border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,0.08);padding:28px}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .progress{color:var(--muted);font-size:13px}
+
+    .main-area{display:grid;grid-template-columns:1fr;gap:18px}
+    @media (max-width:900px){.main-area{grid-template-columns:1fr;}}
+
+    .card-inner{border-radius:10px;border:1px solid #e6e9ee;padding:20px}
+    .word{font-size:48px;font-weight:700;letter-spacing:0.02em}
+    .pron{font-size:22px;color:#374151;margin-top:6px}
+
+    .answer{margin-top:14px;padding:12px;background:#f8fafc;border-radius:8px;border:1px dashed #e6eefb}
+    .label{font-weight:600;margin-bottom:6px}
+
+    .controls{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:8px}
+    .btn{padding:9px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600}
+    .btn:active{transform:translateY(1px)}
+    .btn-ghost{background:#f3f4f6}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-accent{background:#10b981;color:#fff}
+    .small{font-size:13px;padding:7px 9px;border-radius:7px}
+
+    footer{margin-top:12px;color:var(--muted);font-size:13px}
+    .kbd{display:inline-block;background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:12px;margin-left:6px}
+
+    /* エラー表示 */
+    #errorBox{display:none;margin-top:12px;padding:10px;border-radius:8px;background:#fff5f5;border:1px solid #ffdddd;color:#8b1e1e}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="application" aria-label="單字練習アプリ">
+      <header>
+        <h1>單字練習 — 描摹 等（HTML版）</h1>
+        <div class="progress" id="progress">0 / 0</div>
+      </header>
+
+      <div class="main-area">
+        <section>
+          <div class="card-inner">
+            <div class="word" id="word">—</div>
+            <div class="pron" id="pron">—</div>
+
+            <div id="answerArea" class="answer" aria-live="polite">
+              <div id="answerHint">回答を表示するには「顯示答案」ボタンかスペースキーを押してください。</div>
+              <div id="meaningBlock" style="display:none;">
+                <div class="label">意味（日本語）</div>
+                <div id="meaningText"></div>
+                <div style="height:10px"></div>
+                <div class="label">例文（繁體字）</div>
+                <div id="exampleText" style="white-space:pre-wrap"></div>
+              </div>
+            </div>
+
+            <div class="controls">
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-ghost" id="prevBtn" title="前の単語">◀ 上一題</button>
+                <button class="btn btn-primary" id="toggleBtn" title="回答を表示/非表示">顯示答案</button>
+                <button class="btn btn-ghost" id="nextBtn" title="次の単語">下一題 ▶</button>
+              </div>
+
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-accent small" id="shuffleBtn" title="ランダム順">隨機排序</button>
+                <button class="btn btn-ghost small" id="resetBtn" title="リセット">重設</button>
+              </div>
+            </div>
+
+            <div id="errorBox"></div>
+
+            <footer>
+              ヒント: ← → 切換、空白鍵 顯示/隱藏答案。キーボード操作をサポート。
+              <span class="kbd">Space</span>
+            </footer>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        // データ（繁體字と注音）
+        const DATA = [
+  { "word": "論說", "pronunciation": "ㄌㄨㄣˋ ㄕㄨㄛˉ", "meaning": "意見や主張を述べること、論評・論説", "example": "作者在專欄中以具體資料支持自己的論說，並提出可行的政策建議。" },
+  { "word": "糾紛", "pronunciation": "ㄐㄧㄡˉ ㄈㄣ", "meaning": "（当事者間の）紛争・トラブル", "example": "若雙方無法協商，建議盡快透過調解或仲裁來解決糾紛，以免拖延造成更大損失。" },
+  { "word": "吩咐", "pronunciation": "ㄈㄣ ㄈㄨˋ", "meaning": "（人に）指示する、言いつける", "example": "主管吩咐助理在明天上午前完成報表，並在完成後發送給全體同仁確認。" },
+  { "word": "禮儀", "pronunciation": "ㄌㄧˇ ㄧˊ", "meaning": "礼儀・作法", "example": "在國際會議上遵守基本禮儀能有效建立專業形象並促進跨文化交流。" },
+  { "word": "儀態", "pronunciation": "ㄧㄊㄞˊ", "meaning": "（立ち居振る舞いの）態度・身のこなし", "example": "面試時的儀態會影響第一印象，所以事先練習肢體語言與眼神接觸很重要。" },
+  { "word": "建言", "pronunciation": "ㄐㄧㄢˋ ㄧㄢˊ", "meaning": "（公的に）助言・建議をすること", "example": "在會議中他針對成本控制提出建言，並說明可能實施的步驟與風險。" },
+  { "word": "健將", "pronunciation": "ㄐㄧㄢˋ ㄐㄧㄤˋ", "meaning": "優れた選手・強豪（チームのエース）", "example": "這位年輕的健將在決賽中表現出色，為球隊奪下關鍵分數。" },
+  { "word": "口訣", "pronunciation": "ㄎㄡˇ ㄐㄩㄝˊ", "meaning": "（覚え方の）口訣・覚えやすいコツ", "example": "老師教了一個記憶口訣，幫助學生快速記住這類不規則變化。" },
+  { "word": "訣別", "pronunciation": "ㄐㄩㄝˊ ㄅㄧㄝˊ", "meaning": "（別れの）訣別、別れを告げること", "example": "在離別的車站，他們依依不捨地擁抱彼此，默默地訣別後各自上了車。" },
+  { "word": "律師", "pronunciation": "ㄌㄩˋ ㄕ", "meaning": "弁護士（法律の専門家）", "example": "遇到合約糾紛時，建議先諮詢律師以了解自身權利與可能的法律途徑。" },
+  { "word": "律己甚嚴", "pronunciation": "ㄌㄩˋ ㄐㄧˇ ㄕㄣˋ ㄧㄢˊ", "meaning": "自己規律が非常に厳しい（自己に厳格である）", "example": "他在團隊中以律己甚嚴著稱，凡事事先周詳規劃並嚴格要求自己完成品質標準。" },
+  { "word": "津貼", "pronunciation": "ㄐㄧㄣ ㄊㄧㄝ", "meaning": "手当・補助金（津貼）", "example": "公司對外派員提供交通津貼與住宿補助，以降低員工出差負擔。" },
+  { "word": "津津有味", "pronunciation": "ㄐㄧㄣ ㄐㄧㄣ ㄧㄡˇ ㄨㄟˋ", "meaning": "（食べ物や話が）とてもおいしく／面白く感じられる様子", "example": "看著老師生動的講解，學生們津津有味地記下重點並提出問題討論。" },
+  { "word": "囑咐", "pronunciation": "ㄓㄨˇ ㄈㄨˋ", "meaning": "（人に）言いつける・念を押して頼む", "example": "出發前母親囑咐他注意保暖並按時回報行程，語氣既關切又有些擔心。" },
+  { "word": "創建", "pronunciation": "ㄔㄨㄤˋ ㄐㄧㄢˋ", "meaning": "創設する、（組織・建物などを）新しく作る", "example": "為了保存文化資產，博物館決定創建一個專區展示地方傳統工藝與歷史。" },
+  { "word": "敦請", "pronunciation": "ㄉㄨㄣ ㄑㄧㄥˇ", "meaning": "丁重にお願いする（公的に依頼する）", "example": "主辦單位特此敦請各界專家出席座談會，分享最新研究成果與實務經驗。" },
+  { "word": "敦聘", "pronunciation": "ㄉㄨㄣ ㄆㄧㄣˋ", "meaning": "（丁重に）招聘する、採用を依頼する", "example": "本校敦聘業界專家擔任客座講師，期望能將實務經驗引入課程。" },
+  { "word": "爾後", "pronunciation": "ㄦˇ ㄏㄡˋ", "meaning": "その後、以後", "example": "爾後公司加強內部稽核，逐步改善先前暴露的流程漏洞。" },
+  { "word": "爾時", "pronunciation": "ㄦˇ ㄕˊ", "meaning": "その時、当時（文語的表現）", "example": "爾時城中交通尚未發達，居民多以步行或馬車往來市場。" },
+  { "word": "擠牙膏", "pronunciation": "ㄐㄧˇ ㄧㄚˊ ㄍㄠ", "meaning": "（直訳）歯磨き粉を絞る；比喩的に少しずつ情報を出すこと", "example": "他不願一次講清楚，反而像在擠牙膏般慢慢透露重要細節，讓人感到挫折。" },
+  { "word": "糾纏", "pronunciation": "ㄐㄧㄡˉ ㄔㄢˊ", "meaning": "まとわりつく、しつこく絡む（問題・人間関係が長引く）", "example": "兩人之間的誤會被放大後長期糾纏不清，需要第三方協調才能解決。" },
+  { "word": "糾結", "pronunciation": "ㄐㄧㄡˉ ㄐㄧㄝˊ", "meaning": "もつれ悩む、（心が）絡まって決められない", "example": "面對是否換工作的抉擇，她在利弊之間糾結了好幾個星期仍無法下定論。" },
+  { "word": "糾察", "pronunciation": "ㄐㄧㄡˉ ㄔㄚˊ", "meaning": "監視・取り締まりを行うこと（糾察）", "example": "糾察小組將於本週展開巡查，重點檢查安全設備是否符合法規標準。" },
+  { "word": "批改", "pronunciation": "ㄆㄧ ㄍㄞˇ", "meaning": "添削する、採点して訂正する", "example": "老師要求學生先自行檢查草稿，然後再交給助教批改以加速回饋流程。" },
+  { "word": "擺設", "pronunciation": "ㄅㄞˇ ㄕㄜˋ", "meaning": "（物を）飾り付ける、陳列する配置", "example": "我們需要重新調整展區的擺設，讓參觀動線更順暢且突顯主題作品。" },
+  { "word": "託付", "pronunciation": "ㄊㄨㄛ ㄈㄨˋ", "meaning": "委託する・預ける", "example": "他因出差無法親自處理，已將重要資料託付給信任的同事代為保管。" },
+  { "word": "費心", "pronunciation": "ㄈㄟˋ ㄒㄧㄣ", "meaning": "手間をかける、労を取る（心を尽くす）", "example": "感謝你在專案上費心協助，我們才能如期完成並獲得客戶好評。" },
+  { "word": "費力", "pronunciation": "ㄈㄟˋ ㄌㄧˋ", "meaning": "労力がかかる、骨が折れる", "example": "這項整合工程相當費力，但完成後可大幅提升系統效能與維護效率。" }
+];
+
+        let items = [...DATA];
+        let idx = 0;
+        let show = false;
+
+        const wordEl = document.getElementById('word');
+        const pronEl = document.getElementById('pron');
+        const progressEl = document.getElementById('progress');
+        const answerHint = document.getElementById('answerHint');
+        const meaningBlock = document.getElementById('meaningBlock');
+        const meaningText = document.getElementById('meaningText');
+        const exampleText = document.getElementById('exampleText');
+        const errorBox = document.getElementById('errorBox');
+
+        function showError(msg) {
+          console.error(msg);
+          errorBox.style.display = 'block';
+          errorBox.textContent = 'エラー: ' + String(msg);
+        }
+
+        function render() {
+          try {
+            const cur = items[idx];
+            if (!cur) throw new Error('データがありません（index=' + idx + ')');
+            wordEl.textContent = cur.word;
+            pronEl.textContent = cur.pronunciation;
+            progressEl.textContent = (idx + 1) + ' / ' + items.length;
+
+            if (show) {
+              answerHint.style.display = 'none';
+              meaningBlock.style.display = 'block';
+              meaningText.textContent = cur.meaning;
+              exampleText.textContent = cur.example;
+            } else {
+              answerHint.style.display = '';
+              meaningBlock.style.display = 'none';
+            }
+          } catch (err) {
+            showError(err.message || err);
+          }
+        }
+
+        function toggleAnswer() {
+          try {
+            show = !show;
+            document.getElementById('toggleBtn').textContent = show ? '隱藏答案' : '顯示答案';
+            render();
+          } catch (err) { showError(err); }
+        }
+
+        function next() {
+          try {
+            idx = (idx + 1) % items.length;
+            show = false;
+            document.getElementById('toggleBtn').textContent = '顯示答案';
+            render();
+          } catch (err) { showError(err); }
+        }
+        function prev() {
+          try {
+            idx = (idx - 1 + items.length) % items.length;
+            show = false;
+            document.getElementById('toggleBtn').textContent = '顯示答案';
+            render();
+          } catch (err) { showError(err); }
+        }
+
+        function shuffle() {
+          try {
+            for (let i = items.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [items[i], items[j]] = [items[j], items[i]];
+            }
+            idx = 0; show = false; document.getElementById('toggleBtn').textContent = '顯示答案'; render();
+          } catch (err) { showError(err); }
+        }
+
+        function resetAll() {
+          try {
+            items = [...DATA]; idx = 0; show = false; document.getElementById('toggleBtn').textContent = '顯示答案'; render();
+          } catch (err) { showError(err); }
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', next);
+        document.getElementById('prevBtn').addEventListener('click', prev);
+        document.getElementById('toggleBtn').addEventListener('click', toggleAnswer);
+        document.getElementById('shuffleBtn').addEventListener('click', shuffle);
+        document.getElementById('resetBtn').addEventListener('click', resetAll);
+
+        // keyboard support
+        window.addEventListener('keydown', (e) => {
+          try {
+            if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); toggleAnswer(); }
+            else if (e.key === 'ArrowRight') next();
+            else if (e.key === 'ArrowLeft') prev();
+          } catch (err) { showError(err); }
+        });
+
+        // global error catch (for uncaught errors)
+        window.addEventListener('error', (ev) => {
+          showError(ev.message || '不明なエラー');
+        });
+
+        // initial render
+        render();
+      } catch (err) {
+        const el = document.getElementById('errorBox');
+        if (el) { el.style.display = 'block'; el.textContent = '初期化エラー: ' + String(err); }
+        console.error('初期化エラー', err);
+      }
+    });
+  </script>
+</body>
+</html>
